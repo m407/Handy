@@ -35,6 +35,7 @@ on:
       repository:
         required: false
         type: string
+        default: ${{ github.repository }}
       ref:
         required: false
         type: string
@@ -53,8 +54,6 @@ env:
 
 jobs:
   build:
-    permissions:
-      contents: write
     runs-on: ${{ inputs.platform }}
     steps:
       # Kept for git checkout and general tooling headroom. The native
@@ -213,6 +212,16 @@ jobs:
       - name: install frontend dependencies (Windows ARM64)
         if: ${{ contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64') }}
         run: bun install --cpu=arm64
+
+      - name: Configure fork signing and updates
+        shell: bash
+        env:
+          BUILD_REPOSITORY: ${{ github.repository }}
+          BUILD_SERVER_URL: ${{ github.server_url }}
+          SIGN_BINARIES: ${{ inputs.sign-binaries }}
+          UPDATER_PUBLIC_KEY: ${{ vars.TAURI_SIGNING_PUBLIC_KEY }}
+          WINDOWS_SIGN_COMMAND: ${{ vars.WINDOWS_SIGN_COMMAND }}
+        run: node scripts/configure-ci-build.mjs
 
       - name: rustup install target
         if: ${{ inputs.target != '' && !contains(inputs.target, 'x86_64-unknown-linux-gnu') && !contains(inputs.target, 'aarch64-unknown-linux-gnu') && !contains(inputs.target, 'x86_64-pc-windows-msvc') }}

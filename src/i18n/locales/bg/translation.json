@@ -626,6 +626,19 @@
         "label": "Показвай новостите",
         "description": "Показвай бележки към изданието след актуализации на Handy"
       }
+    },
+    "speechProvider": {
+      "title": "Speech recognition provider",
+      "enabled": "Use an external speech provider",
+      "description": "Off: recognize speech locally. On: send recorded audio to the service below. Text improvement uses its own provider in Post Processing.",
+      "compatibility": "Supports OpenAI-compatible audio APIs, including OpenAI and Groq. Enter the API base URL (for Groq: https://api.groq.com/openai/v1) and an audio model supported by that service.",
+      "base_url": "API base URL",
+      "model": "Speech recognition model",
+      "api_key": "API key (optional for local servers)",
+      "save": "Save speech settings",
+      "saved": "Speech settings saved",
+      "saveError": "Could not save speech settings. Check the API URL and model.",
+      "active": "External speech: {{model}}"
     }
   },
   "footer": {

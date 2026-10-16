@@ -29,6 +29,9 @@ on:
       - "tailwind.config.*"
       - ".github/workflows/**"
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -54,6 +57,9 @@ jobs:
 
       - name: Test keyboard utilities
         run: bun run test:keyboard
+
+      - name: Test fork build configuration
+        run: node scripts/configure-ci-build.test.mjs
 
       - name: Run ESLint
         run: bun run lint
