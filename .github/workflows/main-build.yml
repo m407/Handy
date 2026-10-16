@@ -2,7 +2,7 @@ name: "Main Branch Build"
 
 # Runs the full cross-platform build on every push to main so breakage is
 # caught before a manual release is triggered. Build-workflow PRs are also
-# checked. Artifacts are kept for 30 days so builds can be downloaded and tested.
+# checked. Successful main builds publish installers for all platforms.
 
 on:
   workflow_dispatch:
@@ -10,15 +10,47 @@ on:
     paths:
       - ".github/workflows/build.yml"
       - ".github/workflows/main-build.yml"
+      - "scripts/publish-build-release*"
+      - "scripts/release-version*"
   push:
     branches: [main]
+    tags: ["v[0-9]*"]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || 'releases' }}
+  # Serialize main releases so version allocation and publication cannot race.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  release-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Allocate SemVer from Git tags
+        id: version
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { appendFileSync, readFileSync } from 'node:fs';
+          import { nextReleaseVersion, parseVersion } from './scripts/release-version.mjs';
+          const tags = (args) => execFileSync('git', args, { encoding: 'utf8' }).trim().split('\n');
+          const { version: baseline } = JSON.parse(readFileSync('src-tauri/tauri.conf.json'));
+          const version = process.env.GITHUB_REF.startsWith('refs/tags/v')
+            ? parseVersion(process.env.GITHUB_REF_NAME.slice(1)).version
+            : nextReleaseVersion(tags(['tag', '--list']), tags(['tag', '--points-at', 'HEAD']), baseline);
+          appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+          console.log(`Release version: ${version}`);
+          NODE
+
   build:
+    needs: release-version
     permissions:
       contents: read
     strategy:
@@ -54,3 +86,44 @@ jobs:
       build-args: ${{ matrix.args }}
       upload-artifacts: true
       sign-binaries: false
+      version: ${{ needs.release-version.outputs.version }}
+
+  validate-release:
+    needs: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: handy-*
+          path: release-artifacts
+      - name: Validate installers for every platform
+        run: node --input-type=module -e 'import { collectInstallers } from "./scripts/publish-build-release.mjs"; console.log(await collectInstallers("release-artifacts"));'
+
+  publish-release:
+    needs: [release-version, build]
+    if: (github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')) || (startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: handy-*
+          path: release-artifacts
+      - name: Publish complete release
+        uses: actions/github-script@v9
+        env:
+          RELEASE_VERSION: ${{ needs.release-version.outputs.version }}
+        with:
+          script: |
+            const { publishBuildRelease } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/publish-build-release.mjs`);
+            const version = process.env.RELEASE_VERSION;
+            const url = await publishBuildRelease({
+              github, context, version, directory: 'release-artifacts'
+            });
+            await core.summary.addLink('Published release', url).write();

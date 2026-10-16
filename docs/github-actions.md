@@ -6,17 +6,17 @@ Copilot workflow files in that source revision, and none were added.
 GitHub-managed Copilot workflows shown in the upstream Actions UI are not
 repository files and are not part of this configuration.
 
-| Workflow          | Trigger / purpose                                                                 |
-| ----------------- | --------------------------------------------------------------------------------- |
-| code quality      | Relevant pushes/PRs and manual runs; translations, utilities, lint and formatting |
-| test              | Rust changes/PRs and manual runs; Rust tests                                      |
-| Playwright        | Frontend PRs and manual runs; browser tests                                       |
-| nix build check   | Relevant pushes/PRs and manual runs; Nix evaluation and builds                    |
-| Build             | Reusable cross-platform build, called by the workflows below                      |
-| Main Branch Build | Pushes to `main` or manual runs; unsigned installable artifacts                   |
-| Build Test        | Manual; unsigned test artifacts                                                   |
-| PR Test Build     | Manual PR number; unsigned artifacts and a download link on the PR                |
-| Release           | Manual; draft release in this repository, unsigned by default                     |
+| Workflow          | Trigger / purpose                                                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| code quality      | Relevant pushes/PRs and manual runs; translations, utilities, lint and formatting                    |
+| test              | Rust changes/PRs and manual runs; Rust tests                                                         |
+| Playwright        | Frontend PRs and manual runs; browser tests                                                          |
+| nix build check   | Relevant pushes/PRs and manual runs; Nix evaluation and builds                                       |
+| Build             | Reusable cross-platform build, called by the workflows below                                         |
+| Main Branch Build | Pushes to `main`, SemVer tags, manual runs and build-workflow PRs; installers and automatic releases |
+| Build Test        | Manual; unsigned test artifacts                                                                      |
+| PR Test Build     | Manual PR number; unsigned artifacts and a download link on the PR                                   |
+| Release           | Manual; draft release in this repository, unsigned by default                                        |
 
 The original seven-entry Linux, macOS and Windows build matrix is preserved.
 PR and test builds do not receive signing secrets. The shared build inherits
@@ -31,10 +31,50 @@ tab. If GitHub has disabled Actions for the fork, enable them there. In
 (or allow all actions). GitHub repository settings and secrets are not copied
 by forking or by copying YAML files.
 
-Use **Run workflow** on Build Test or Main Branch Build to produce installers.
-Release creates a **draft**, which must be checked before publishing. This change
-does not publish a release or start the full build matrix automatically from
-this development branch.
+Use **Run workflow** on Build Test to produce test installers. Main Branch Build
+publishes a release after all seven matrix jobs succeed on `main` (push or manual
+run), or after a push of a SemVer tag. PR runs build and validate all installers
+but never publish a release. The separate manual Release workflow remains
+available for preparing signed draft releases.
+
+## Automatic releases and SemVer
+
+On `main`, the next version is the highest stable `vX.Y.Z` Git tag (or the
+checked-in version as an initial baseline), with patch increased by one. With
+no tags and the current baseline `0.9.8`, the first release is `v0.9.9`.
+A rerun reuses a stable tag already pointing to its commit.
+
+For an explicit major/minor version or a prerelease, push a tag on the desired
+commit, for example `v1.0.0` or `v1.1.0-beta.1`. Invalid SemVer tags fail before
+building. Prereleases do not replace the Latest release. Automatic stable tags
+created by the workflow token do not trigger a second build.
+
+Before compilation, the chosen version is written to `package.json`,
+`src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and Handy's entry in
+`src-tauri/Cargo.lock` in each runner's workspace. This keeps application version,
+installer filenames and GitHub release tag aligned without version-bump commits.
+
+The publishing job downloads the artifacts from that exact run and verifies:
+
+| Platform                    | Required installers                                                 |
+| --------------------------- | ------------------------------------------------------------------- |
+| macOS Apple Silicon / Intel | DMG for each architecture                                           |
+| Windows ARM64 / x64         | NSIS EXE for each architecture; MSI is also published when produced |
+| Ubuntu 22.04 x64            | DEB                                                                 |
+| Ubuntu 24.04 x64            | AppImage and RPM                                                    |
+| Ubuntu 24.04 ARM64          | AppImage, DEB and RPM                                               |
+
+These are the existing supported build targets; no additional distribution
+support is implied. All produced MSI installers are included alongside the
+required formats. Missing, empty or colliding installer files fail validation.
+
+After validation, the job reserves the version tag on the built commit, uploads
+the installers to a draft, then publishes it as a release. An upload failure
+leaves a draft that can be completed by rerunning the workflow. Published assets
+are never overwritten on a rerun. Main/tag runs are serialized to avoid version
+allocation races; GitHub may replace an older pending run with the newest one.
+Only the publishing job has `contents: write`; builds and PR validation are
+read-only. Default releases are unsigned and do not enable automatic updates.
 
 ## Signing and updates
 
@@ -68,7 +108,9 @@ runs; PR runs remain read-only and receive no cache credential.
 
 ## Validation
 
-Run `node scripts/configure-ci-build.test.mjs` for signed/unsigned config
+Run `node scripts/release-version.test.mjs` and
+`node scripts/publish-build-release.test.mjs` for version allocation and release
+publication tests. Run `node scripts/configure-ci-build.test.mjs` for signed/unsigned config
 regressions and `actionlint` to validate workflow syntax and reusable-workflow
 interfaces. Older actionlint releases may need the upstream runner labels
 `macos-26`, `ubuntu-24.04-arm` and `windows-11-arm` configured as known runners.

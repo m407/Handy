@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: ""
+      version:
+        description: "SemVer assigned by the calling release workflow"
+        required: false
+        type: string
+        default: ""
       release-id:
         required: false
         type: string
@@ -76,6 +81,13 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+
+      - name: Apply release version
+        if: inputs.version != ''
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: node --input-type=module -e 'import { applyVersion } from "./scripts/release-version.mjs"; await applyVersion(".", process.env.RELEASE_VERSION);'
 
       - name: Get version from tauri.conf.json
         id: get-version

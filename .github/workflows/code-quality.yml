@@ -61,6 +61,11 @@ jobs:
       - name: Test fork build configuration
         run: node scripts/configure-ci-build.test.mjs
 
+      - name: Test automatic release publication
+        run: |
+          node scripts/release-version.test.mjs
+          node scripts/publish-build-release.test.mjs
+
       - name: Run ESLint
         run: bun run lint
 
