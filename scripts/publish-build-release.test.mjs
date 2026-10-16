@@ -89,6 +89,7 @@ test("publishes all platform installers only after all uploads, pinned to the bu
   assert.equal(calls.filter((c) => c.name === "uploadReleaseAsset").length, 10);
   assert.equal(calls.at(-1).name, "updateRelease");
   assert.equal(calls.at(-1).args.draft, false);
+  assert.equal(calls.at(-1).args.make_latest, "legacy");
 });
 
 test("missing platform or package format prevents any GitHub mutation", async (t) => {

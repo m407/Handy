@@ -46,13 +46,18 @@ A rerun reuses a stable tag already pointing to its commit.
 
 For an explicit major/minor version or a prerelease, push a tag on the desired
 commit, for example `v1.0.0` or `v1.1.0-beta.1`. Invalid SemVer tags fail before
-building. Prereleases do not replace the Latest release. Automatic stable tags
+building. Prereleases do not replace the Latest release; stable releases use
+GitHub's SemVer-aware Latest selection instead of forcing historical tags to Latest.
+Automatic stable tags
 created by the workflow token do not trigger a second build.
 
 Before compilation, the chosen version is written to `package.json`,
 `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and Handy's entry in
 `src-tauri/Cargo.lock` in each runner's workspace. This keeps application version,
 installer filenames and GitHub release tag aligned without version-bump commits.
+Windows MSI receives a separate numeric `major.minor.patch.0` WiX version so
+alphabetic prerelease labels remain valid application versions. Versions must
+fit MSI's limits: major/minor ≤255 and patch ≤65535.
 
 The publishing job downloads the artifacts from that exact run and verifies:
 

@@ -151,7 +151,7 @@ export async function publishBuildRelease({
     ...repo,
     release_id: release.id,
     draft: false,
-    make_latest: prerelease ? "false" : "true",
+    make_latest: prerelease ? "false" : "legacy",
   });
   return data.html_url;
 }

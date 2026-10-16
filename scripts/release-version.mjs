@@ -39,12 +39,23 @@ export function nextReleaseVersion(tags, currentTags, fallback) {
 }
 
 export async function applyVersion(directory, version) {
-  parseVersion(version);
+  const { major, minor, patch } = parseVersion(version);
+  if (major > 255n || minor > 255n || patch > 65535n) {
+    throw new Error("Version exceeds Windows MSI limits (255.255.65535)");
+  }
   const updates = [];
   for (const file of ["package.json", "src-tauri/tauri.conf.json"]) {
     const path = join(directory, file);
     const data = JSON.parse(await readFile(path, "utf8"));
     data.version = version;
+    if (file === "src-tauri/tauri.conf.json") {
+      // WiX cannot derive an MSI version from alphabetic prerelease identifiers.
+      // Keep SemVer for the app, with a separate numeric installer version.
+      data.bundle ??= {};
+      data.bundle.windows ??= {};
+      data.bundle.windows.wix ??= {};
+      data.bundle.windows.wix.version = `${major}.${minor}.${patch}.0`;
+    }
     updates.push([path, `${JSON.stringify(data, null, 2)}\n`]);
   }
   for (const [file, pattern] of [

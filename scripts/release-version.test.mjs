@@ -67,6 +67,13 @@ test("updates Tauri, npm, Cargo manifest and only Handy's lockfile entry", async
   const lock = await readFile(join(root, "src-tauri/Cargo.lock"), "utf8");
   assert.match(lock, /name = "handy"\nversion = "1.2.3"/);
   assert.match(lock, /name = "dependency"\nversion = "0.9.8"/);
+  await applyVersion(root, "1.2.3-beta.1");
+  const config = JSON.parse(
+    await readFile(join(root, "src-tauri/tauri.conf.json")),
+  );
+  assert.equal(config.version, "1.2.3-beta.1");
+  assert.equal(config.bundle.windows.wix.version, "1.2.3.0");
+  await assert.rejects(applyVersion(root, "256.0.0"), /Windows MSI limits/);
 });
 
 test("Windows CRLF manifests and lockfiles retain their line endings", async (t) => {
