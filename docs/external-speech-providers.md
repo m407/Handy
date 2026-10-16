@@ -30,8 +30,8 @@ Audio is sent as a 16 kHz mono PCM WAV after recording stops. Live transcription
 and local long-form chunking are not used in external mode. The upload limit is
 25 MB (approximately 13 minutes); larger recordings fail explicitly rather than
 being truncated. Requests time out after 120 seconds. Failures do not silently
-send the recording to another provider. Cancelling suppresses text output, but
-cannot recall audio already uploaded.
+send the recording to another provider. Cancelling stops waiting for the external request and releases the recording
+pipeline for the next recording. It cannot recall audio already uploaded.
 
 The language selector sends a language hint unless set to Auto. Translate to
 English uses `/audio/translations`; enable it only with a service/model supporting

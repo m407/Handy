@@ -606,6 +606,7 @@ impl ShortcutAction for TranscribeAction {
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
         let post_process = self.post_process;
         let cancel_generation = rm.cancel_generation();
+        let transcription_cancel_mark = tm.cancellation_mark();
 
         tauri::async_runtime::spawn(async move {
             let _guard = FinishGuard(ah.clone(), Arc::clone(&tm));
@@ -655,7 +656,8 @@ impl ShortcutAction for TranscribeAction {
                     let transcription_time = Instant::now();
                     let transcription_manager = Arc::clone(&tm);
                     let transcription_result = tauri::async_runtime::spawn_blocking(move || {
-                        transcription_manager.transcribe_recording(samples)
+                        transcription_manager
+                            .transcribe_recording(samples, transcription_cancel_mark)
                     })
                     .await
                     .map_err(|e| anyhow::anyhow!("Transcription task failed: {}", e))

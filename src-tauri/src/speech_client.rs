@@ -48,7 +48,36 @@ fn encode_wav(audio: &[f32]) -> Result<Vec<u8>> {
     Ok(buffer.into_inner())
 }
 
-pub async fn transcribe(
+/// Drop the entire HTTP operation on cancellation, including upload, waiting
+/// for headers and reading the response body. A queued operation checks the
+/// caller's original cancellation generation before sending any audio.
+pub async fn transcribe_cancellable(
+    provider: &SpeechProviderSettings,
+    audio: &[f32],
+    language: &str,
+    translate: bool,
+    is_cancelled: impl Fn() -> bool,
+) -> Result<String> {
+    let operation = transcribe(provider, audio, language, translate);
+    tokio::pin!(operation);
+    loop {
+        if is_cancelled() {
+            return Err(crate::engine_supervisor::EngineError::Cancelled.into());
+        }
+        if let Ok(result) =
+            tokio::time::timeout(Duration::from_millis(25), operation.as_mut()).await
+        {
+            // Cancellation wins even if the response became ready together
+            // with the signal, so no stale transcript reaches post-processing.
+            if is_cancelled() {
+                return Err(crate::engine_supervisor::EngineError::Cancelled.into());
+            }
+            return result;
+        }
+    }
+}
+
+async fn transcribe(
     provider: &SpeechProviderSettings,
     audio: &[f32],
     language: &str,
@@ -144,6 +173,146 @@ mod tests {
             request
         });
         (url, task)
+    }
+
+    /// A server that receives the whole upload, then stalls either before
+    /// headers or halfway through the JSON body until the client disconnects.
+    async fn stalled_server(
+        send_headers: bool,
+    ) -> (
+        String,
+        tokio::sync::oneshot::Receiver<()>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/v1", listener.local_addr().unwrap());
+        let (ready, received) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            loop {
+                let mut buffer = [0; 4096];
+                let n = socket.read(&mut buffer).await.unwrap();
+                assert_ne!(n, 0, "client disconnected before uploading");
+                request.extend_from_slice(&buffer[..n]);
+                if let Some(end) = request.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let headers = String::from_utf8_lossy(&request[..end]).to_lowercase();
+                    let length: usize = headers
+                        .lines()
+                        .find_map(|line| line.strip_prefix("content-length: "))
+                        .unwrap()
+                        .parse()
+                        .unwrap();
+                    if request.len() >= end + 4 + length {
+                        break;
+                    }
+                }
+            }
+            if send_headers {
+                socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{\"text\":\"").await.unwrap();
+            }
+            ready.send(()).unwrap();
+            let mut byte = [0];
+            match socket.read(&mut byte).await {
+                Ok(0) | Err(_) => {}
+                Ok(_) => panic!("unexpected data after upload"),
+            }
+        });
+        (url, received, server)
+    }
+
+    async fn assert_stalled_request_cancels(send_headers: bool) {
+        use crate::engine_supervisor::{EngineError, EngineSupervisor};
+        use std::sync::Arc;
+        let engine = Arc::new(EngineSupervisor::new(false));
+        let mark = engine.cancel_mark();
+        let (base_url, received, server) = stalled_server(send_headers).await;
+        let provider = SpeechProviderSettings {
+            base_url,
+            ..Default::default()
+        };
+        let worker_engine = Arc::clone(&engine);
+        // Exercise the same blocking-task bridge used by the recording path.
+        let worker = tokio::task::spawn_blocking(move || {
+            tauri::async_runtime::block_on(transcribe_cancellable(
+                &provider,
+                &[0.0],
+                "auto",
+                false,
+                || worker_engine.was_cancelled_since(mark),
+            ))
+        });
+        tokio::time::timeout(Duration::from_secs(2), received)
+            .await
+            .unwrap()
+            .unwrap();
+        engine.cancel();
+        let error = tokio::time::timeout(Duration::from_secs(2), worker)
+            .await
+            .expect("cancel must release the blocking worker without waiting for the provider")
+            .unwrap()
+            .unwrap_err();
+        assert!(matches!(
+            error.downcast_ref::<EngineError>(),
+            Some(EngineError::Cancelled)
+        ));
+        tokio::time::timeout(Duration::from_secs(2), server)
+            .await
+            .expect("dropping the request must close the stalled connection")
+            .unwrap();
+
+        // An old cancellation must not poison the next recording.
+        let next_mark = engine.cancel_mark();
+        let (base_url, server) = serve_once("200 OK", r#"{"text":"next recording"}"#).await;
+        let provider = SpeechProviderSettings {
+            base_url,
+            ..Default::default()
+        };
+        let text = transcribe_cancellable(&provider, &[0.0], "auto", false, || {
+            engine.was_cancelled_since(next_mark)
+        })
+        .await
+        .unwrap();
+        assert_eq!(text, "next recording");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn cancellation_releases_worker_waiting_for_headers() {
+        assert_stalled_request_cancels(false).await;
+    }
+
+    #[tokio::test]
+    async fn cancellation_releases_worker_waiting_for_body() {
+        assert_stalled_request_cancels(true).await;
+    }
+
+    #[tokio::test]
+    async fn queued_request_cancelled_before_start_never_connects() {
+        use crate::engine_supervisor::{EngineError, EngineSupervisor};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let provider = SpeechProviderSettings {
+            base_url: format!("http://{}/v1", listener.local_addr().unwrap()),
+            ..Default::default()
+        };
+        let engine = EngineSupervisor::new(false);
+        let mark = engine.cancel_mark();
+        engine.cancel();
+        let error = transcribe_cancellable(&provider, &[0.0], "auto", false, || {
+            engine.was_cancelled_since(mark)
+        })
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            error.downcast_ref::<EngineError>(),
+            Some(EngineError::Cancelled)
+        ));
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), listener.accept())
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]
