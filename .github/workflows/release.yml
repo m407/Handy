@@ -1,6 +1,12 @@
 name: "Release"
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      sign-binaries:
+        description: "Sign with this repository's own Apple/Azure/Tauri credentials"
+        type: boolean
+        default: false
 
 jobs:
   create-release:
@@ -73,7 +79,7 @@ jobs:
       platform: ${{ matrix.platform }}
       target: ${{ matrix.target }}
       build-args: ${{ matrix.args }}
-      sign-binaries: true
+      sign-binaries: ${{ inputs.sign-binaries }}
       asset-prefix: "handy"
       upload-artifacts: false
       release-id: ${{ needs.create-release.outputs.release-id }}

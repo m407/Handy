@@ -4,10 +4,15 @@ on:
   push:
     branches: [main]
     paths:
+      - ".github/workflows/test.yml"
       - "src-tauri/**"
   pull_request:
     paths:
+      - ".github/workflows/test.yml"
       - "src-tauri/**"
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
