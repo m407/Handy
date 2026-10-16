@@ -1,11 +1,15 @@
 name: "Main Branch Build"
 
 # Runs the full cross-platform build on every push to main so breakage is
-# caught before a manual release is triggered. Artifacts are kept for 30 days
-# so any commit on main has a downloadable, testable build.
+# caught before a manual release is triggered. Build-workflow PRs are also
+# checked. Artifacts are kept for 30 days so builds can be downloaded and tested.
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/build.yml"
+      - ".github/workflows/main-build.yml"
   push:
     branches: [main]
 
