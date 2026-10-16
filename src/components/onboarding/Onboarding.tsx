@@ -1,3 +1,4 @@
+import { SpeechProviderSettings } from "../settings/SpeechProviderSettings";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -183,6 +184,9 @@ const Onboarding: React.FC<OnboardingProps> = ({
 
       <div className="max-w-[600px] w-full mx-auto text-center flex-1 flex flex-col min-h-0">
         <div className="space-y-6 pb-6">
+          {!preview && (
+            <SpeechProviderSettings onConfigured={onModelSelected} />
+          )}
           {existingModels.length > 0 && (
             <div className="space-y-3">
               <div className="text-left">

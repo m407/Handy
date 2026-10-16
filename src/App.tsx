@@ -259,9 +259,9 @@ function App() {
       if (hasCompletedOnboarding) {
         // Returning user - check if they need to grant permissions first
         setIsReturningUser(true);
-        const retiredModelId = await getMigrationModelId(
-          settingsResult.data.selected_model ?? "",
-        );
+        const retiredModelId = settingsResult.data.speech_provider?.enabled
+          ? null
+          : await getMigrationModelId(settingsResult.data.selected_model ?? "");
         setMigrationModelId(retiredModelId);
 
         if (currentPlatform === "macos") {
@@ -324,7 +324,10 @@ function App() {
   const handleModelSelected = async () => {
     // Coming from the model update: the user picked a different model instead
     // of updating, so the retired models left on disk can't run anymore.
-    if (migrationModelId) {
+    if (
+      migrationModelId &&
+      !useSettingsStore.getState().settings?.speech_provider?.enabled
+    ) {
       for (const model of await commands.getRetiredModels()) {
         await deleteRetiredModel(model.id);
       }

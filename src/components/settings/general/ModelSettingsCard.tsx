@@ -1,3 +1,4 @@
+import { useSettings } from "@/hooks/useSettings";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { SettingsGroup } from "../../ui/SettingsGroup";
@@ -9,6 +10,20 @@ import type { ModelInfo } from "@/bindings";
 export const ModelSettingsCard: React.FC = () => {
   const { t } = useTranslation();
   const { currentModel, models } = useModelStore();
+  const { settings } = useSettings();
+
+  if (settings?.speech_provider?.enabled) {
+    return (
+      <SettingsGroup
+        title={t("settings.modelSettings.title", {
+          model: settings.speech_provider.model,
+        })}
+      >
+        <LanguageSelector descriptionMode="tooltip" grouped={true} />
+        <TranslateToEnglish descriptionMode="tooltip" grouped={true} />
+      </SettingsGroup>
+    );
+  }
 
   const currentModelInfo = models.find((m: ModelInfo) => m.id === currentModel);
 

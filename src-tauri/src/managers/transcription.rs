@@ -664,6 +664,9 @@ impl TranscriptionManager {
 
     /// Kicks off the model loading in a background thread if it's not already loaded
     pub fn initiate_model_load(&self) {
+        if get_settings(&self.app_handle).speech_provider.enabled {
+            return;
+        }
         let mut is_loading = self.is_loading.lock().unwrap();
         if *is_loading {
             return;
@@ -727,6 +730,9 @@ impl TranscriptionManager {
     /// falls back to batch transcription. Frames sent before the decode begins
     /// queue on the channel and are not lost.
     pub fn start_stream(&self) {
+        if get_settings(&self.app_handle).speech_provider.enabled {
+            return;
+        }
         if self.router.is_open() || self.active_stream_worker.load(Ordering::Acquire) != 0 {
             warn!("start_stream called while a stream worker is already active");
             return;
@@ -883,18 +889,24 @@ impl TranscriptionManager {
         .emit(&self.app_handle);
     }
 
+    /// Capture before queueing a recording's transcription so cancellation
+    /// while the blocking task is waiting also prevents an external upload.
+    pub fn cancellation_mark(&self) -> CancelMark {
+        self.engine.cancel_mark()
+    }
+
     /// Transcribe a whole clip in batch: a re-transcribed history entry, or
     /// a file from the CLI.
     pub fn transcribe(&self, audio: Vec<f32>) -> Result<String> {
-        self.complete(Instant::now(), audio, None)
+        self.complete(Instant::now(), audio, None, self.cancellation_mark())
     }
 
     /// Transcribe a finished recording: what its live decode produced, or a
     /// batch run of the whole recording when there is no live result.
-    pub fn transcribe_recording(&self, samples: Vec<f32>) -> Result<String> {
+    pub fn transcribe_recording(&self, samples: Vec<f32>, mark: CancelMark) -> Result<String> {
         let started = Instant::now();
         let live = self.finalize_live(samples.len())?;
-        self.complete(started, samples, live)
+        self.complete(started, samples, live, mark)
     }
 
     /// The final text of one transcription, from its live result or else a
@@ -904,6 +916,7 @@ impl TranscriptionManager {
         started: Instant,
         audio: Vec<f32>,
         live: Option<RunOutcome>,
+        mark: CancelMark,
     ) -> Result<String> {
         #[cfg(debug_assertions)]
         if std::env::var("HANDY_FORCE_TRANSCRIPTION_FAILURE").is_ok() {
@@ -920,11 +933,33 @@ impl TranscriptionManager {
             return Ok(String::new());
         }
 
-        let outcome = match live {
-            Some(outcome) => outcome,
-            None => self.decode_batch(audio)?,
-        };
         let settings = get_settings(&self.app_handle);
+        let outcome = if settings.speech_provider.enabled {
+            let text =
+                tauri::async_runtime::block_on(crate::speech_client::transcribe_cancellable(
+                    &settings.speech_provider,
+                    &audio,
+                    &settings.selected_language,
+                    settings.translate_to_english,
+                    || self.engine.was_cancelled_since(mark),
+                ))?;
+            RunOutcome {
+                setup: RunSetup {
+                    run_options: RunOptions::default(),
+                    languages: Vec::new(),
+                    applied_language_hint: (settings.selected_language != "auto")
+                        .then(|| settings.selected_language.clone()),
+                    output_was_translated: settings.translate_to_english,
+                },
+                text,
+                model_detected_language: None,
+            }
+        } else {
+            match live {
+                Some(outcome) => outcome,
+                None => self.decode_batch(audio)?,
+            }
+        };
         let final_result = finish_text(outcome, &settings);
 
         let translation_note = if settings.translate_to_english {

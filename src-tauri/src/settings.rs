@@ -367,6 +367,37 @@ impl std::ops::DerefMut for SecretMap {
     }
 }
 
+/// Speech recognition uses independent credentials and model selection.
+#[derive(Serialize, Deserialize, Clone, Type)]
+#[serde(default)]
+pub struct SpeechProviderSettings {
+    pub enabled: bool,
+    pub base_url: String,
+    pub api_key: String,
+    pub model: String,
+}
+
+impl Default for SpeechProviderSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_url: "https://api.openai.com/v1".into(),
+            api_key: String::new(),
+            model: "whisper-1".into(),
+        }
+    }
+}
+
+impl fmt::Debug for SpeechProviderSettings {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SpeechProviderSettings")
+            .field("enabled", &self.enabled)
+            .field("model", &self.model)
+            .field("api_key", &"[REDACTED]")
+            .finish_non_exhaustive()
+    }
+}
+
 /* still handy for composing the initial JSON in the store ------------- */
 /// The container-level `serde(default)` (backed by the `Default` impl below)
 /// guarantees every field — including ones added in the future — falls back to
@@ -459,6 +490,8 @@ pub struct AppSettings {
     pub auto_submit_key: AutoSubmitKey,
     #[serde(default = "default_post_process_enabled")]
     pub post_process_enabled: bool,
+    #[serde(default)]
+    pub speech_provider: SpeechProviderSettings,
     #[serde(default = "default_post_process_provider_id")]
     pub post_process_provider_id: String,
     #[serde(default = "default_post_process_providers")]
@@ -993,6 +1026,7 @@ pub fn get_default_settings() -> AppSettings {
         auto_submit: default_auto_submit(),
         auto_submit_key: AutoSubmitKey::default(),
         post_process_enabled: default_post_process_enabled(),
+        speech_provider: SpeechProviderSettings::default(),
         post_process_provider_id: default_post_process_provider_id(),
         post_process_providers: default_post_process_providers(),
         post_process_api_keys: default_post_process_api_keys(),

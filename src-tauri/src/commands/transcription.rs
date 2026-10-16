@@ -38,3 +38,22 @@ pub fn unload_model_manually(
     transcription_manager.request_unload();
     Ok(())
 }
+
+/// Persist speech settings without changing the text improvement provider.
+#[tauri::command]
+#[specta::specta]
+pub fn set_speech_provider(
+    app: AppHandle,
+    provider: crate::settings::SpeechProviderSettings,
+) -> Result<(), String> {
+    if provider.enabled {
+        crate::speech_client::validate(&provider).map_err(|e| e.to_string())?;
+    }
+    let mut settings = get_settings(&app);
+    if provider.enabled {
+        settings.onboarding_completed = true;
+    }
+    settings.speech_provider = provider;
+    write_settings(&app, settings);
+    Ok(())
+}
