@@ -664,6 +664,9 @@ impl TranscriptionManager {
 
     /// Kicks off the model loading in a background thread if it's not already loaded
     pub fn initiate_model_load(&self) {
+        if get_settings(&self.app_handle).speech_provider.enabled {
+            return;
+        }
         let mut is_loading = self.is_loading.lock().unwrap();
         if *is_loading {
             return;
@@ -727,6 +730,9 @@ impl TranscriptionManager {
     /// falls back to batch transcription. Frames sent before the decode begins
     /// queue on the channel and are not lost.
     pub fn start_stream(&self) {
+        if get_settings(&self.app_handle).speech_provider.enabled {
+            return;
+        }
         if self.router.is_open() || self.active_stream_worker.load(Ordering::Acquire) != 0 {
             warn!("start_stream called while a stream worker is already active");
             return;
@@ -920,11 +926,31 @@ impl TranscriptionManager {
             return Ok(String::new());
         }
 
-        let outcome = match live {
-            Some(outcome) => outcome,
-            None => self.decode_batch(audio)?,
-        };
         let settings = get_settings(&self.app_handle);
+        let outcome = if settings.speech_provider.enabled {
+            let text = tauri::async_runtime::block_on(crate::speech_client::transcribe(
+                &settings.speech_provider,
+                &audio,
+                &settings.selected_language,
+                settings.translate_to_english,
+            ))?;
+            RunOutcome {
+                setup: RunSetup {
+                    run_options: RunOptions::default(),
+                    languages: Vec::new(),
+                    applied_language_hint: (settings.selected_language != "auto")
+                        .then(|| settings.selected_language.clone()),
+                    output_was_translated: settings.translate_to_english,
+                },
+                text,
+                model_detected_language: None,
+            }
+        } else {
+            match live {
+                Some(outcome) => outcome,
+                None => self.decode_batch(audio)?,
+            }
+        };
         let final_result = finish_text(outcome, &settings);
 
         let translation_note = if settings.translate_to_english {

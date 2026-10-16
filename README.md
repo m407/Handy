@@ -4,7 +4,7 @@
 
 **A free, open source, and extensible speech-to-text application that works completely offline.**
 
-Handy is a cross-platform desktop application that provides simple, privacy-focused speech transcription. Press a shortcut, speak, and have your words appear in any text field. This happens on your own computer without sending any information to the cloud.
+Handy is a cross-platform desktop application that provides simple, privacy-focused speech transcription. Press a shortcut, speak, and have your words appear in any text field. By default, speech recognition runs on your own computer. You can optionally configure an [external speech provider](docs/external-speech-providers.md), independently of the provider used to improve the resulting text.
 
 ## Why Handy?
 
@@ -12,7 +12,7 @@ Handy was created to fill the gap for a truly open source, extensible speech-to-
 
 - **Free**: Accessibility tooling belongs in everyone's hands, not behind a paywall
 - **Open Source**: Together we can build further. Extend Handy for yourself and contribute to something bigger
-- **Private**: Your voice stays on your computer. Get transcriptions without sending audio to the cloud
+- **Private by default**: Local speech recognition keeps your voice on your computer. External speech recognition is opt-in
 - **Simple**: One tool, one job. Transcribe what you say and put it into a text box
 
 ## How It Works
@@ -22,7 +22,7 @@ Handy was created to fill the gap for a truly open source, extensible speech-to-
 3. **Release** and Handy processes your speech using Whisper
 4. **Get** your transcribed text pasted directly into whatever app you're using
 
-The process is entirely local:
+The default speech recognition process is entirely local:
 
 - Silence is filtered using VAD (Voice Activity Detection) with Silero
 - Transcription uses your choice of models:

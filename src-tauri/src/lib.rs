@@ -22,6 +22,7 @@ mod secure_input;
 mod settings;
 mod shortcut;
 mod signal_handle;
+mod speech_client;
 mod transcription_coordinator;
 mod tray;
 mod tray_i18n;
@@ -531,10 +532,17 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
 
     let tm = app.state::<Arc<TranscriptionManager>>();
 
-    let model_id = args
-        .model
-        .clone()
-        .unwrap_or_else(|| get_settings(app).selected_model);
+    let settings = get_settings(app);
+    let external = settings.speech_provider.enabled;
+    if external && (args.model.is_some() || args.device_index.is_some()) {
+        eprintln!("error: --model and --device-index select local models; disable the external speech provider first");
+        return 2;
+    }
+    let model_id = if external {
+        settings.speech_provider.model
+    } else {
+        args.model.clone().unwrap_or(settings.selected_model)
+    };
     if model_id.is_empty() {
         eprintln!("error: no model selected (pass --model or pick one in the app)");
         return 2;
@@ -551,9 +559,11 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
 
     // Cold load (timed).
     let load_start = Instant::now();
-    if let Err(e) = tm.load_model_with_device(&model_id, device_index) {
-        eprintln!("error: load_model('{}') failed: {}", model_id, e);
-        return 1;
+    if !external {
+        if let Err(e) = tm.load_model_with_device(&model_id, device_index) {
+            eprintln!("error: load_model('{}') failed: {}", model_id, e);
+            return 1;
+        }
     }
     let load_ms = load_start.elapsed().as_millis() as u64;
     let bound_backend = tm.current_backend();
@@ -565,7 +575,7 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
         // If the model's unload-timeout is "Immediately", transcribe() unloads
         // the engine after each run; reload (untimed) so repeats keep working
         // and the inference timing below stays clean.
-        if !tm.is_model_loaded() {
+        if !external && !tm.is_model_loaded() {
             if let Err(e) = tm.load_model_with_device(&model_id, device_index) {
                 eprintln!("error: reload before run {} failed: {}", i + 1, e);
                 return 1;
@@ -758,6 +768,7 @@ pub fn run(cli_args: CliArgs) {
             commands::audio::get_microphone_channels,
             commands::audio::set_selected_channel,
             commands::transcription::set_model_unload_timeout,
+            commands::transcription::set_speech_provider,
             commands::transcription::get_model_load_status,
             commands::transcription::unload_model_manually,
             commands::history::get_history_entries,
