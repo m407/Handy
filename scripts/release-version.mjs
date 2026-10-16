@@ -48,10 +48,10 @@ export async function applyVersion(directory, version) {
     updates.push([path, `${JSON.stringify(data, null, 2)}\n`]);
   }
   for (const [file, pattern] of [
-    ["src-tauri/Cargo.toml", /(\[package\][\s\S]*?\nversion = ")[^"]+("\n)/],
+    ["src-tauri/Cargo.toml", /(\[package\][\s\S]*?\nversion = ")[^"]+("\r?\n)/],
     [
       "src-tauri/Cargo.lock",
-      /(\[\[package\]\]\nname = "handy"\nversion = ")[^"]+("\n)/,
+      /(\[\[package\]\]\r?\nname = "handy"\r?\nversion = ")[^"]+("\r?\n)/,
     ],
   ]) {
     const path = join(directory, file);
