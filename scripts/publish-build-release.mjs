@@ -78,6 +78,13 @@ export async function publishBuildRelease({
     }));
   } catch (error) {
     if (error.status !== 404) throw error;
+    // Tag lookup is for published releases; list also includes drafts visible
+    // to this token, including a release interrupted during asset uploads.
+    const releases = await github.paginate(
+      github.rest.repos.listReleases,
+      repo,
+    );
+    release = releases.find((candidate) => candidate.tag_name === tag);
   }
   if (release && release.target_commitish !== context.sha) {
     throw new Error("Existing release points to a different commit");

@@ -29,6 +29,7 @@ function api(existing, failUpload = false) {
   const repos = {};
   for (const name of [
     "getReleaseByTag",
+    "listReleases",
     "createRelease",
     "listReleaseAssets",
     "deleteReleaseAsset",
@@ -38,7 +39,7 @@ function api(existing, failUpload = false) {
     repos[name] = async (args) => {
       calls.push({ name, args });
       if (name === "getReleaseByTag") {
-        if (existing) return { data: existing };
+        if (existing && !existing.draft) return { data: existing };
         throw Object.assign(new Error("Not found"), { status: 404 });
       }
       if (name === "uploadReleaseAsset" && failUpload)
@@ -58,7 +59,12 @@ function api(existing, failUpload = false) {
           createRef: async () => ({}),
         },
       },
-      paginate: async () => existing?.assets ?? [],
+      paginate: async (endpoint) =>
+        endpoint === repos.listReleases
+          ? existing
+            ? [{ ...existing, tag_name: existing.tag_name ?? "v0.9.8" }]
+            : []
+          : (existing?.assets ?? []),
     },
   };
 }
