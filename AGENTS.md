@@ -94,7 +94,7 @@ Handy is a cross-platform desktop speech-to-text application built with Tauri 2.
 
 **Command-Event Architecture:** Frontend → Backend via Tauri commands; Backend → Frontend via events.
 
-**Pipeline Processing:** Audio → VAD → Whisper/Parakeet → Text output → Clipboard/Paste
+**Pipeline Processing:** Audio → VAD → local speech model or configured OpenAI-compatible audio provider → optional independent text post-processing provider → Clipboard/Paste. Local recognition is the default; remote providers can be cloud services or in-house endpoints.
 
 **State Flow:** Zustand → Tauri Command → Rust State → Persistence (tauri-plugin-store)
 
@@ -111,9 +111,9 @@ Handy is a cross-platform desktop speech-to-text application built with Tauri 2.
 ### Application Flow
 
 1. **Initialization:** App starts minimized to tray, loads settings, initializes managers
-2. **Model Setup:** First-run downloads preferred Whisper model (Small/Medium/Turbo/Large)
+2. **Provider Setup:** First-run selects/downloads a local speech model or configures an external speech provider. External recognition does not require downloading a local speech model.
 3. **Recording:** Global shortcut triggers audio recording with VAD filtering
-4. **Processing:** Audio sent to Whisper model for transcription
+4. **Processing:** Audio is transcribed locally or uploaded to the selected speech provider. Optional text improvement sends the transcript to its independently configured provider.
 5. **Output:** Text pasted to active application via system clipboard
 
 ### Settings System
