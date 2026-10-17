@@ -14,7 +14,7 @@ Handy aims to be the most forkable speech-to-text app. The goal is to create bot
 
 - **Simplicity**: Clear, maintainable code over clever solutions
 - **Extensibility**: Make it easy for others to fork and customize
-- **Privacy**: Keep everything local and offline
+- **Privacy and choice**: Keep local speech recognition as the default. Make remote audio or text processing opt-in, document which data goes to which provider, and support compatible cloud and in-house endpoints. Speech recognition and text improvement must retain independent provider settings.
 - **Accessibility**: Free tooling that belongs in everyone's hands
 
 ## 🚀 Getting Started

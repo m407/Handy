@@ -2,6 +2,8 @@
 
 This guide covers how to set up the development environment and build Handy from source across different platforms.
 
+Handy supports local recognition and optional remote speech/text providers, including servers hosted inside an organization. These are runtime settings; building the application still requires the native dependencies below. See [provider configuration](docs/external-speech-providers.md) to choose local, cloud or in-house processing.
+
 ## Prerequisites
 
 ### All Platforms

@@ -2,24 +2,27 @@
 
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/invite/WVBeWsNXK4)
 
-**A free, open source, and extensible speech-to-text application that works completely offline.**
+**Free, open source speech-to-text with offline recognition and optional online processing through cloud or in-house providers.**
 
-Handy is a cross-platform desktop application that provides simple, privacy-focused speech transcription. Press a shortcut, speak, and have your words appear in any text field. By default, speech recognition runs on your own computer. You can optionally configure an [external speech provider](docs/external-speech-providers.md), independently of the provider used to improve the resulting text.
+This fork of Handy is a cross-platform desktop application for speech transcription. Press a shortcut, speak, and have your words appear in any text field. Speech recognition runs on your own computer by default. You can also use online processing if you are comfortable sending recordings or text to a third-party provider, or connect a custom provider hosted inside your enterprise organization. Speech recognition and subsequent text improvement have independent provider settings.
+
+See [offline, cloud and in-house processing](docs/external-speech-providers.md) for setup and details of what data is sent where.
 
 ## Why Handy?
 
-Handy was created to fill the gap for a truly open source, extensible speech-to-text tool. As stated on [handy.computer](https://handy.computer):
+Handy was created to fill the gap for a truly open source, extensible speech-to-text tool. This fork keeps that goal and offers a choice of where processing happens:
 
 - **Free**: Accessibility tooling belongs in everyone's hands, not behind a paywall
 - **Open Source**: Together we can build further. Extend Handy for yourself and contribute to something bigger
-- **Private by default**: Local speech recognition keeps your voice on your computer. External speech recognition is opt-in
+- **Local by default**: Recognize speech offline after downloading a local model. Sending recordings to a provider is opt-in
+- **Your choice of provider**: Use a cloud service or a compatible in-house server. Configure speech recognition and text improvement separately
 - **Simple**: One tool, one job. Transcribe what you say and put it into a text box
 
 ## How It Works
 
 1. **Press** a configurable keyboard shortcut: hold it to record and release to stop, or tap it to toggle recording on and off (Hold-only and Toggle-only modes are also available)
 2. **Speak** your words while the shortcut is active
-3. **Release** and Handy processes your speech using Whisper
+3. **Release** and Handy processes your speech with the selected local model or configured speech provider
 4. **Get** your transcribed text pasted directly into whatever app you're using
 
 The default speech recognition process is entirely local:
@@ -30,13 +33,21 @@ The default speech recognition process is entirely local:
   - **Parakeet V3** - CPU-optimized model with excellent performance and automatic language detection
 - Works on Windows, macOS, and Linux
 
+### Offline, cloud or in-house
+
+- **Offline recognition:** use a local speech model. To keep transcript processing local too, disable remote Post Processing or select an on-device text provider.
+- **Online cloud processing:** opt in to a compatible speech service and/or text provider when you accept sending that data outside your computer or organization. Speech recognition uploads audio; Post Processing sends the transcript to its separately selected provider.
+- **In-house processing:** point speech recognition at an OpenAI-compatible audio API inside your organization and configure Post Processing to use an internal endpoint as well, if needed. Processing can stay within your organization when both services are hosted internally and do not forward data elsewhere. An internal service still requires network connectivity; it is not offline processing.
+
+Local recognition does not automatically make subsequent text improvement local. Choose both providers according to where you want audio and text processed.
+
 ## Quick Start
 
 ### Installation
 
-1. Download the latest release from the [releases page](https://github.com/cjpais/Handy/releases) or the [website](https://handy.computer)
-   - **macOS**: Also available via [Homebrew cask](https://formulae.brew.sh/cask/handy): `brew install --cask handy`
-   - **Windows**: Also available via [winget](https://github.com/microsoft/winget-pkgs): `winget install cjpais.Handy` \
+1. Download this fork from the [m407/Handy releases page](https://github.com/m407/Handy/releases). The [upstream website](https://handy.computer) and the Homebrew/winget packages listed below distribute upstream Handy and may not include this fork's online-provider support:
+   - **Upstream macOS package**: Available via [Homebrew cask](https://formulae.brew.sh/cask/handy): `brew install --cask handy`
+   - **Upstream Windows package**: Available via [winget](https://github.com/microsoft/winget-pkgs): `winget install cjpais.Handy` \
      **Note:** The Homebrew cask and winget package are not maintained by the Handy developers.
    - **Debian/Ubuntu**: Install the downloaded `.deb` with APT so required dependencies are installed automatically:
      ```bash
@@ -45,8 +56,9 @@ The default speech recognition process is entirely local:
      Do not use `dpkg -i` unless the dependencies are already installed. If you already used it, run `sudo apt --fix-broken install`.
 2. Install the application
 3. Launch Handy and grant necessary system permissions (microphone, accessibility)
-4. Configure your preferred keyboard shortcuts in Settings
-5. Start transcribing!
+4. Select a local speech model, or configure an [external speech provider](docs/external-speech-providers.md) in the first-run model picker or **General → Speech recognition provider**. Downloading a local speech model is optional in external mode.
+5. Configure keyboard shortcuts and, optionally, an independent provider in **Post Processing** to improve the transcript.
+6. Start transcribing!
 
 ### Development Setup
 
